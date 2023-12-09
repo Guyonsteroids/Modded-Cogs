@@ -89,13 +89,18 @@ class Autoreact(commands.Cog):
                and await self.bot.ignored_channel_or_guild(message) \
                and not await self.bot.cog_disabled_in_guild(self, message.guild)
 
+    # Helper function for sending embeds
+    async def send_embed(self, ctx: commands.Context, title: str, description: str, color: Optional[discord.Color] = None):
+        embed = discord.Embed(title=title, description=description, color=color or await ctx.embed_color())
+        await ctx.send(embed=embed)
+
     # Commands
 
     @commands.group(invoke_without_command=True)
     @commands.guild_only()
     async def autoreact(self, ctx: commands.Context):
         """Reacts to specific text with an emoji."""
-        await ctx.send_help()
+        await self.send_embed(ctx, "Autoreact Help", "Available commands:\n`autoreact add`, `autoreact remove`, `autoreact list`")
 
     @autoreact.command()
     @commands.has_permissions(manage_guild=True)
@@ -103,20 +108,20 @@ class Autoreact(commands.Cog):
     async def add(self, ctx: commands.Context, emoji: Union[discord.Emoji, str], *, pattern: str):
         """Add a new autoreact using regex. Tip: (?i) in a regex makes it case-insensitive."""
         if isinstance(emoji, str) and not is_emoji(emoji) and not is_regional_indicator(emoji):
-            await ctx.send("Sorry, that doesn't seem to be a valid emoji to react with.")
+            await self.send_embed(ctx, "Invalid Emoji", "Sorry, that doesn't seem to be a valid emoji to react with.")
             return
         if isinstance(emoji, discord.Emoji) and emoji not in self.bot.emojis:
-            await ctx.send("I must be in the same guild as an emoji to be able to use it!")
+            await self.send_embed(ctx, "Invalid Emoji", "I must be in the same guild as an emoji to be able to use it!")
             return
         if len(pattern) > 400:
-            await ctx.send("Sorry, the regex may not be longer than 400 characters.")
+            await self.send_embed(ctx, "Invalid Regex", "Sorry, the regex may not be longer than 400 characters.")
             return
         if pattern.startswith('`') and pattern.endswith('`'):
             pattern = pattern.strip('`')
         try:
             pattern = re.compile(pattern)
         except Exception as error:
-            await ctx.send(f"Invalid regex pattern: {error}")
+            await self.send_embed(ctx, "Invalid Regex", f"Invalid regex pattern: {error}")
             return
         emoji = str(emoji)
         self.autoreacts.setdefault(ctx.guild.id, {})
@@ -130,8 +135,8 @@ class Autoreact(commands.Cog):
     async def remove(self, ctx: commands.Context, emoji: Union[discord.Emoji, str]):
         """Remove an existing autoreact for an emoji."""
         if isinstance(emoji, str) and not is_emoji(emoji) and not is_regional_indicator(emoji):
-            await ctx.send("Sorry, that doesn't seem to be a valid emoji. "
-                           "If the emoji was deleted, trigger the autoreact to remove it automatically.")
+            await self.send_embed(ctx, "Invalid Emoji", "Sorry, that doesn't seem to be a valid emoji. "
+                                                        "If the emoji was deleted, trigger the autoreact to remove it automatically.")
             return
         emoji = str(emoji)
         self.autoreacts.setdefault(ctx.guild.id, {})
@@ -141,13 +146,13 @@ class Autoreact(commands.Cog):
             if removed1 or removed2:
                 await ctx.react_quietly("✅")
             else:
-                await ctx.send("No autoreacts found for that emoji.")
+                await self.send_embed(ctx, "No Autoreacts", "No autoreacts found for that emoji.")
 
     @autoreact.command()
     async def list(self, ctx: commands.Context):
         """Shows all autoreacts."""
         if ctx.guild.id not in self.autoreacts or not self.autoreacts[ctx.guild.id]:
-            return await ctx.send("None.")
+            return await self.send_embed(ctx, "Autoreacts", "None.")
         autoreacts = [f"{emoji} {regex.pattern if '`' in regex.pattern else f'`{regex.pattern}`'}"
                       for emoji, regex in self.autoreacts[ctx.guild.id].items()]
         pages = []
@@ -166,15 +171,16 @@ class Autoreact(commands.Cog):
     @commands.has_permissions(manage_guild=True)
     async def coreact(self, ctx: commands.Context):
         """Copies other people's reactions to recent messages."""
-        await ctx.send_help()
+        await self.send_embed(ctx, "Coreact Help", "Available commands:\n`coreact chance`")
         
     @coreact.command()
     async def chance(self, ctx: commands.Context, chance: Optional[float]):
         """The percent chance that the bot will add its own reaction when anyone else reacts."""
         if chance is None:
-            return await ctx.send(f"The current chance is {self.coreact_chance.get(ctx.guild.id, 0.0) * 100:.2f}%")
+            current_chance = self.coreact_chance.get(ctx.guild.id, 0.0) * 100
+            await self.send_embed(ctx, "Coreact Chance", f"The current chance is {current_chance:.2f}%")
+            return
         chance = max(0.0, min(100.0, chance)) / 100
         await self.config.guild(ctx.guild).coreact_chance.set(chance)
         self.coreact_chance[ctx.guild.id] = chance
-        await ctx.send(f"✅ The new chance is {chance * 100:.2f}%")
-
+        await self.send_embed(ctx, "Coreact Chance Updated", f"✅ The new chance is {chance * 100:.2f}%")
