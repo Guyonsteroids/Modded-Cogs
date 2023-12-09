@@ -42,7 +42,7 @@ class Autoreact(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if not message.guild or message.author.bot:
+        if not message.guild:
             return
         channel_perms = message.channel.permissions_for(message.guild.me)
         if not channel_perms.add_reactions:
@@ -70,7 +70,7 @@ class Autoreact(commands.Cog):
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction: discord.Reaction, user: discord.Member):
         message = reaction.message
-        if not message or not message.guild or user.bot:
+        if not message or not message.guild:
             return
         if any(existing.me for existing in message.reactions if existing.emoji == reaction.emoji):
             return
